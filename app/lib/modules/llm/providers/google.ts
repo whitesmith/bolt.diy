@@ -15,9 +15,49 @@ export default class GoogleProvider extends BaseProvider {
   staticModels: ModelInfo[] = [
     { name: 'gemini-2.0-pro-exp-02-05', label: 'Gemini 2.0 Pro (exp)', provider: 'Google', maxTokenAllowed: 8192 },
     { name: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', provider: 'Google', maxTokenAllowed: 8192 },
-    { name: 'gemini-2.0-flash-thinking-exp-01-21', label: 'Gemini 2.0 Flash (thinking)', provider: 'Google', maxTokenAllowed: 8192 },
+    {
+      name: 'gemini-2.0-flash-thinking-exp-01-21',
+      label: 'Gemini 2.0 Flash (thinking)',
+      provider: 'Google',
+      maxTokenAllowed: 8192,
+    },
     { name: 'gemini-exp-1206', label: 'Gemini exp-1206', provider: 'Google', maxTokenAllowed: 8192 },
   ];
+
+  async getDynamicModels(
+    apiKeys?: Record<string, string>,
+    settings?: IProviderSetting,
+    serverEnv?: Record<string, string>,
+  ): Promise<ModelInfo[]> {
+    const { apiKey } = this.getProviderBaseUrlAndKey({
+      apiKeys,
+      providerSettings: settings,
+      serverEnv: serverEnv as any,
+      defaultBaseUrlKey: '',
+      defaultApiTokenKey: 'GOOGLE_GENERATIVE_AI_API_KEY',
+    });
+
+    if (!apiKey) {
+      throw `Missing Api Key configuration for ${this.name} provider`;
+    }
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`, {
+      headers: {
+        ['Content-Type']: 'application/json',
+      },
+    });
+
+    const res = (await response.json()) as any;
+
+    const data = res.models.filter((model: any) => model.outputTokenLimit > 8000);
+
+    return data.map((m: any) => ({
+      name: m.name.replace('models/', ''),
+      label: `${m.displayName} - context ${Math.floor((m.inputTokenLimit + m.outputTokenLimit) / 1000) + 'k'}`,
+      provider: this.name,
+      maxTokenAllowed: m.inputTokenLimit + m.outputTokenLimit || 8000,
+    }));
+  }
 
   getModelInstance(options: {
     model: string;

@@ -13,12 +13,59 @@ export default class GroqProvider extends BaseProvider {
   };
 
   staticModels: ModelInfo[] = [
-    { name: 'deepseek-r1-distill-llama-70b', label: 'DeepSeek R1 Distill Llama 70b', provider: 'Groq', maxTokenAllowed: 8000 },
-    { name: 'deepseek-r1-distill-qwen-32b', label: 'DeepSeek R1 Distill Qwen 32b', provider: 'Groq', maxTokenAllowed: 8000 },
+    {
+      name: 'deepseek-r1-distill-llama-70b',
+      label: 'DeepSeek R1 Distill Llama 70b',
+      provider: 'Groq',
+      maxTokenAllowed: 8000,
+    },
+    {
+      name: 'deepseek-r1-distill-qwen-32b',
+      label: 'DeepSeek R1 Distill Qwen 32b',
+      provider: 'Groq',
+      maxTokenAllowed: 8000,
+    },
     { name: 'qwen-2.5-32b', label: 'Qwen 2.5 32b', provider: 'Groq', maxTokenAllowed: 8000 },
     { name: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70b', provider: 'Groq', maxTokenAllowed: 8000 },
     { name: 'llama-3.1-8b-instant', label: 'Llama 3.1 8b', provider: 'Groq', maxTokenAllowed: 8000 },
   ];
+
+  async getDynamicModels(
+    apiKeys?: Record<string, string>,
+    settings?: IProviderSetting,
+    serverEnv?: Record<string, string>,
+  ): Promise<ModelInfo[]> {
+    const { apiKey } = this.getProviderBaseUrlAndKey({
+      apiKeys,
+      providerSettings: settings,
+      serverEnv: serverEnv as any,
+      defaultBaseUrlKey: '',
+      defaultApiTokenKey: 'GROQ_API_KEY',
+    });
+
+    if (!apiKey) {
+      throw `Missing Api Key configuration for ${this.name} provider`;
+    }
+
+    const response = await fetch(`https://api.groq.com/openai/v1/models`, {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+    });
+
+    const res = (await response.json()) as any;
+
+    const data = res.data.filter(
+      (model: any) => model.object === 'model' && model.active && model.context_window > 8000,
+    );
+
+    return data.map((m: any) => ({
+      name: m.id,
+      label: `${m.id} - context ${m.context_window ? Math.floor(m.context_window / 1000) + 'k' : 'N/A'} [ by ${m.owned_by}]`,
+      provider: this.name,
+      maxTokenAllowed: m.context_window || 8000,
+    }));
+  }
 
   getModelInstance(options: {
     model: string;
